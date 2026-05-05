@@ -4,7 +4,8 @@ import {
   StyleSheet, KeyboardAvoidingView, Platform, Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { setSessionUser } from "../src/utils/session";
+import { aslSocket } from "../src/ws/aslSocket";
 
 const CREDS_KEY = "asl_user_credentials";
 
@@ -23,7 +24,6 @@ export default function LoginScreen() {
 
     try {
       const endpoint = isSignUp ? "register" : "login"; // 2 options: login or sign up
-
       const response = await fetch(`http://localhost:8000/${endpoint}`, {
         method: "POST",
         headers: {
@@ -35,22 +35,26 @@ export default function LoginScreen() {
         }),
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        data = null;
+      }
 
       if (response.ok) {
-        await AsyncStorage.setItem(
-          CREDS_KEY,
-          JSON.stringify({ username: username.trim() })
-        );
+        await setSessionUser(username.trim());
+        console.log("login success");
 
-        router.replace("/");
-      } else {
-        if (isSignUp) {
-          setErrorMsg(data.detail || "Username already exists");
-        } else {
-          console.log("SHOWING ALERT");
-          setErrorMsg("Invalid username or password");
-        }
+        router.push("/");
+      }  else {
+        const msg =
+          data?.detail ||
+          `Request failed (${response.status})`;
+
+        console.log("LOGIN ERROR:", msg);
+
+        setErrorMsg(msg);
       }
     } catch (error) {
       console.error("Error during authentication:", error);

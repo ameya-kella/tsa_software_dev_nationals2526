@@ -5,21 +5,80 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { clearSession, getSessionUser } from "../src/utils/session";
+import { aslSocket } from "../src/ws/aslSocket";
 
 export default function HomeScreen() {
   const router = useRouter();
   const handleLogout = async () => {
-    await AsyncStorage.removeItem("asl_user_credentials");
+    await clearSession();
+    globalThis.__session_user = null;
+
+    // clear local persisted state
+    await AsyncStorage.multiRemove([
+      "active_session_id",
+      "draft_conversation",
+      "isAutomated",
+      "asl_user_credentials",
+    ]);
+
+    // reset websocket state (important)
+    aslSocket.clearRecognizedWords();
+    aslSocket.disconnect();
+
     router.replace("/login");
   };
   const CREDS_KEY = "asl_user_credentials";
+  const APP_LAUNCHED_KEY = "app_launched_once";
+  const API_URL = "http://localhost:8000"; // change this
   
-  useEffect(() => {
-    (async () => {
-      const stored = await AsyncStorage.getItem(CREDS_KEY);
-      if (!stored) router.replace("/login");
-    })();
-  }, []);
+
+  const createSession = async () => {
+    const user = await getSessionUser();
+    console.log("CREATING SESSION FOR USER:", user?.username);
+
+    const res = await fetch(`${API_URL}/create_session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: user?.username
+      }),
+    });
+
+    const data = await res.json();
+    return data.session_id;
+  };
+
+  const getOrCreateSession = async () => {
+    const existing = await AsyncStorage.getItem("active_session_id");
+    if (existing) return existing;
+
+    const newSession = await createSession();
+    await AsyncStorage.setItem("active_session_id", newSession);
+    return newSession;
+  };
+  const handleLiveInterpreter = async () => {
+    await AsyncStorage.removeItem("active_session_id");
+    router.push({
+      pathname: "/camera",
+      params: {
+        mode: "interpreter",
+      },
+    });
+  };
+  const handleLiveConversation = async () => {
+    const sessionId = await createSession();
+
+    await AsyncStorage.setItem("active_session_id", sessionId);
+
+    router.push({
+      pathname: "/camera",
+      params: {
+        mode: "conversation",
+        sessionId,
+      },
+    });
+  };
 
   const [isAutomated, setIsAutomated] = useState(false);
   const toggleSwitch = async () => {
@@ -31,29 +90,13 @@ export default function HomeScreen() {
   useEffect(() => {
     const run = async () => {
       try {
-        const draft = await AsyncStorage.getItem("draft_conversation");
-        const activeSession = await AsyncStorage.getItem("active_session_id");
-        if (draft && !activeSession) {
-          const messages = JSON.parse(draft);
 
-          if (messages && messages.length >= 2) {
-            const creds = await AsyncStorage.getItem("asl_user_credentials");
-            if (creds) {
-              const { username } = JSON.parse(creds);
-
-              await fetch("http://localhost:8000/save_session", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username, messages }),
-              });
-
-              console.log("Conversation saved");
-            }
-          }
-
-          await AsyncStorage.removeItem("draft_conversation");
+        if (!aslSocket.isConnected()) {
+          setTimeout(() => {
+            aslSocket.connect()
+          }, 50);
         }
-
+   
         // reset backend flow
         if (global.ws && global.ws.readyState === WebSocket.OPEN) {
           global.ws.send(JSON.stringify({
@@ -128,8 +171,7 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.cardGrid}>
-          <Link href="/camera" asChild>
-            <TouchableOpacity activeOpacity={0.88} style={styles.card}>
+            <TouchableOpacity activeOpacity={0.88} style={styles.card} onPress={handleLiveInterpreter}>
               <View style={styles.cardTop}>
                <View style={styles.iconBubblePurple}>
           <MaterialCommunityIcons name="hand-wave" size={22} color="#E9D5FF" />
@@ -147,12 +189,10 @@ export default function HomeScreen() {
                 <Text style={styles.cardArrow}>›</Text>
               </View>
             </TouchableOpacity>
-          </Link>
         </View>
 
         <View style={styles.cardGrid}>
-          <Link href="/camera?mode=conversation" asChild>
-            <TouchableOpacity activeOpacity={0.88} style={styles.card}>
+            <TouchableOpacity activeOpacity={0.88} style={styles.card} onPress={handleLiveConversation}>
               <View style={styles.cardTop}>
                 <View style={styles.iconBubblePurple}>
                   <MaterialCommunityIcons name="microphone-message" size={22} color="#E9D5FF" />
@@ -162,13 +202,12 @@ export default function HomeScreen() {
                   <Text style={styles.cardDesc}>Interpreter + Speech-to-Text</Text>
                 </View>
               </View>
-
+           
               <View style={styles.cardHintRow}>
                 <Text style={styles.cardHint}>For seamless communication between deaf and non-ASL speakers.</Text>
                 <Text style={styles.cardArrow}>›</Text>
               </View>
             </TouchableOpacity>
-          </Link>
 
           <TouchableOpacity style={styles.card} onPress={() => router.push("/history")}>
             <Text style={styles.cardTitle}>History</Text>

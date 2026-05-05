@@ -4,6 +4,8 @@ import { Link, useLocalSearchParams, useRouter } from "expo-router";
 import * as Speech from "expo-speech";
 import { Ionicons } from "@expo/vector-icons";
 
+export const API_BASE = "http://localhost:8000";
+
 type Params = {
   text?: string; // text from hearing person
   deafText?: string; // text from deaf person
@@ -27,7 +29,21 @@ export default function OutputScreen() {
 
   // determine if autoGoConversation should trigger after speech
   const autoGoConversation = params?.autoGoConversation === "true";
+  
+  const handleSpeechDone = async () => {
+    console.log("output screen: " + params.sessionId);
 
+    if (autoGoConversation) {
+      router.replace({
+        pathname: "/speech",
+        params: {
+          sessionId: params.sessionId,
+          deafText: params.deafText || params.text,
+        },
+      });
+      return;
+    }
+  };
   const speak = () => {
     if (!hasRealText || isSpeaking) return;
 
@@ -38,21 +54,7 @@ export default function OutputScreen() {
 
     Speech.speak(text, {
       rate: 0.95,
-      onDone: () => {
-        console.log("Speech done");
-        setIsSpeaking(false);
-        if (autoGoConversation) {
-          console.log("Redirecting to /speech with deafText");
-          console.log(params.deafText);
-          router.push({
-            pathname: "/speech",
-            params: {
-              deafText: params.deafText || params.text,
-              sessionId: params.sessionId,
-            },
-          });
-        }
-      },
+      onDone: () => {handleSpeechDone();},
       onStopped: () => {
         console.log("Speech stopped manually");
         setIsSpeaking(false);

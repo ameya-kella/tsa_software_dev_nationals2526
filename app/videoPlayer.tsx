@@ -6,7 +6,10 @@ import { VideoView, useVideoPlayer } from "expo-video";
 
 export default function VideoPlayer() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ url?: string }>();
+  const params = useLocalSearchParams<{ 
+    url?: string; 
+    sessionId?: string; 
+  }>();
   const url = params.url;
 
   const player = useVideoPlayer(url ?? "", (player) => {
@@ -17,7 +20,10 @@ export default function VideoPlayer() {
     if (!player) return;
 
     const sub = player.addListener("playToEnd", () => {
-      router.replace("/speech"); // return back to chat screen automatically
+      router.replace({
+        pathname: "/speech",
+        params: { sessionId: params.sessionId },
+      }); // return back to chat screen automatically
     });
 
     return () => sub.remove();
@@ -33,7 +39,12 @@ export default function VideoPlayer() {
           style={styles.video}
           autoPlay
           controls
-          onEnded={() => router.replace("/speech")}
+          onEnded={() =>
+            router.replace({
+              pathname: "/speech",
+              params: { sessionId: params.sessionId },
+            })
+          }
         />
       ) : (
         <VideoView

@@ -233,15 +233,18 @@ async def transcribe_audio(file: UploadFile = File(...)):
             f.write(await file.read())
 
         subprocess.run(
-            [
-                "ffmpeg", "-y",
-                "-i", input_path,
-                "-ar", "16000",
-                "-ac", "1",
-                wav_path,
-            ],
-            check=True,
-        )
+                [
+                    "ffmpeg",
+                    "-fflags", "+genpts+discardcorrupt",
+                    "-err_detect", "ignore_err",
+                    "-y",
+                    "-i", input_path,
+                    "-ar", "16000",
+                    "-ac", "1",
+                    wav_path,
+                ],
+                check=True,
+            )
 
         result = whisper_model.transcribe(wav_path, language="en")
 
@@ -314,7 +317,7 @@ class ChatSession(Base):
 
     id = Column(String, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    title = Column(String, default="Conversation")
+    title = Column(String, default="New Conversation")
     created_at = Column(Integer)
 
 class Conversation(Base):
@@ -325,11 +328,11 @@ class Conversation(Base):
     sender = Column(String)
     text = Column(String)
     timestamp = Column(Integer)
+    asl_text = Column(String, nullable=True)
+    asl_video = Column(String, nullable=True)
 
 class SessionCreate(BaseModel):
     username: str
-    messages: list
-from pydantic import BaseModel
 
 class AppendMessage(BaseModel):
     session_id: str
@@ -339,77 +342,91 @@ class AppendMessage(BaseModel):
 
 Base.metadata.create_all(bind=engine)
 
+
 @app.post("/append_message")
 def append_message(data: AppendMessage, db: Session = Depends(get_db)):
     msg = data.message
+
+    existing = db.query(Conversation).filter(
+        Conversation.id == msg["id"]
+    ).first()
+
+    if existing:
+        existing.asl_text = msg.get("aslText", existing.asl_text)
+        existing.asl_video = msg.get("aslVideo", existing.asl_video)
+        db.commit()
+        return {"status": "updated"}
 
     db_msg = Conversation(
         id=msg["id"],
         session_id=data.session_id,
         sender=msg["sender"],
         text=msg["text"],
-        timestamp=msg["ts"]
+        timestamp=msg["ts"],
+        asl_text=msg.get("aslText"),
+        asl_video=msg.get("aslVideo"),
     )
 
     db.add(db_msg)
     db.commit()
 
-    return {"status": "ok"}
+    return {"status": "inserted"}
 
-# saving a conversation session in history
-@app.post("/save_session")
-def save_session(data: SessionCreate, db: Session = Depends(get_db)):
-    # Find user
+
+# creating a conversation session in history
+@app.post("/create_session")
+def create_session(data: SessionCreate, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == data.username).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-
     session_id = str(uuid.uuid4())
+    print(session_id)
 
-    # create chat session
     session = ChatSession(
         id=session_id,
         user_id=user.id,
         title="Conversation",
         created_at=int(time.time() * 1000)
     )
+
     db.add(session)
-
-    # save all messages
-    for msg in data.messages:
-        db_msg = Conversation(
-            id=msg["id"],
-            session_id=session_id,
-            sender=msg["sender"],
-            text=msg["text"],
-            timestamp=msg["ts"]
-        )
-        db.add(db_msg)
-
     db.commit()
 
-    return {"status": "saved", "session_id": session_id}
+    return {"session_id": session_id}
 
 # get all sessions for a user
 @app.get("/sessions/{username}")
 def get_sessions(username: str, db: Session = Depends(get_db)):
-    # find user
+    print("name: " + username)
     user = db.query(User).filter(User.username == username).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    print("user id:", user.id)
 
-    # get sessions for user
-    sessions = db.query(ChatSession).filter(ChatSession.user_id == user.id).all()
+    sessions = db.query(ChatSession).filter(
+        ChatSession.user_id == user.id
+    ).all()
 
-    return [
-        {
+    result = []
+
+    for s in sessions:
+        last_msg = (
+            db.query(Conversation)
+            .filter(Conversation.session_id == s.id)
+            .order_by(Conversation.timestamp.desc())
+            .first()
+        )
+
+        result.append({
             "id": s.id,
             "title": s.title,
-            "created_at": s.created_at
-        }
-        for s in sessions
-    ]
+            "created_at": s.created_at,
+            "last_message": last_msg.text if last_msg else None,
+            "last_ts": last_msg.timestamp if last_msg else s.created_at,
+        })
 
+    return result
+    
 @app.get("/messages/session/{session_id}")
 def get_session_messages(session_id: str, db: Session = Depends(get_db)):
     msgs = db.query(Conversation).filter(
@@ -417,14 +434,30 @@ def get_session_messages(session_id: str, db: Session = Depends(get_db)):
     ).all()
 
     return [
-        {
-            "id": m.id,
-            "sender": m.sender,
-            "text": m.text,
-            "ts": m.timestamp
-        }
-        for m in msgs
-    ]
+    {
+        "id": m.id,
+        "sender": m.sender,
+        "text": m.text,
+        "ts": m.timestamp,
+        "aslText": m.asl_text,
+        "aslVideo": m.asl_video,
+    }
+    for m in msgs
+]
+
+class RenameSessionRequest(BaseModel):
+    session_id: str
+    new_title: str
+
+@app.patch("/rename_session")
+def rename_session(data: RenameSessionRequest, db: Session = Depends(get_db)):
+    session = db.query(ChatSession).filter(ChatSession.id == data.session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session.title = data.new_title
+    db.commit()
+    return {"status": "success", "message": "Session renamed"}
 
 @app.get("/video/{video_id}")
 def get_video(video_id: str, request: Request):

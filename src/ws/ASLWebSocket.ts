@@ -15,7 +15,11 @@ export class ASLWebSocket {
   private reconnectTimer: any = null;
   private heartbeatTimer: any = null;
   private lastContext: { flow: "interpreter" | "conversation" } | null = null;
+  private connected = false;
 
+  isConnected() {
+    return this.connected && this.ws?.readyState === WebSocket.OPEN;
+  }
   constructor(
     private url: string,
     private heartbeatMs = 15000,
@@ -35,6 +39,7 @@ export class ASLWebSocket {
 
     this.ws.onopen = () => {
       console.log("[ASL WS] connected");
+      this.connected = true;
       this.startHeartbeat();
       if (this.lastContext) {
         this.ws.send(JSON.stringify({ type: "context", ...this.lastContext }));
@@ -82,6 +87,7 @@ export class ASLWebSocket {
   }
 
   disconnect() {
+    this.connected = false;
     this.cleanup();
     clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
@@ -107,10 +113,11 @@ export class ASLWebSocket {
   }
 
   private cleanup() {
+    this.connected = false;
     clearInterval(this.heartbeatTimer);
     this.heartbeatTimer = null;
   }
-  
+    
   sendContext(ctx: { flow: "interpreter" | "conversation" }) {
     this.lastContext = ctx;
 

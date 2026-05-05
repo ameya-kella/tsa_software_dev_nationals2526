@@ -32,6 +32,7 @@
     "whisper-web-transcriber": "^0.2.5"
   },
   "devDependencies": {
+    "@types/node": "^25.5.2",
     "@types/react": "~19.1.10",
     "typescript": "~5.9.2"
   }

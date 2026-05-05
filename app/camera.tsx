@@ -423,7 +423,9 @@ export default function CameraScreen() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const router = useRouter();
 
-  const params = useLocalSearchParams<{ mode?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; sessionId?: string }>();
+  const sessionId =
+    Array.isArray(params.sessionId) ? params.sessionId[0] : params.sessionId;
   const isConversationMode = params?.mode === "conversation";
 
   const [isFrozen, setIsFrozen] = useState(false);
@@ -455,8 +457,6 @@ export default function CameraScreen() {
   const lockedWordRef = useRef<string | null>(null);
   const hasAutoSentRef = useRef(false);
   const [autoConversation, setAutoConversation] = useState(false);
-
-
   const isFocusedRef = useRef(true);
 
   useEffect(() => {
@@ -729,32 +729,13 @@ export default function CameraScreen() {
     if (lastWord && lastWord !== "—") {
       lockedWordRef.current = lastWord;
     }
-
-    const finalText = (generatedSentence || lastWord || "—").trim();
-    handleClear();
-
-    if (isConversationMode) {
-      await appendChatMessage({
-        id: String(Date.now()),
-        sender: "deaf",
-        text: finalText,
-        ts: Date.now(),
-      });
-
-      if (generatedSentence) {
-        await appendChatMessage({
-          id: String(Date.now() + 1),
-          sender: "hearing",
-          text: generatedSentence,
-          ts: Date.now() + 1,
-        });
-      }
-    }
-
+    const finalText = (generatedSentence || lastWord || "—").trim();    
     // Push to output screen using `deafText` for confirmed messages
-    const url = `/output?deafText=${encodeURIComponent(finalText)}&autoGoConversation=${isConversationMode}`;
-
+    const url = `/output?deafText=${encodeURIComponent(finalText)}&autoGoConversation=${isConversationMode}${
+      isConversationMode && sessionId ? `&sessionId=${sessionId}` : ""
+    }`;
     router.push(url);
+    handleClear();
   };
 
   const handleClear = () => {
