@@ -1,5 +1,5 @@
-# TSA HS Software Development - State Presubmission - Signify
-Team ID: 2057-1
+# TSA HS Software Development - Nationals Presubmission - Signify
+Team/Chapter Number: 1086
 
 Our app, named Signify, aims to bridge the gap that exists between the hearing-impaired and those they wish to communicate with by providing an innovative solution for continuous sign language detection and translation. Through our application, users will be able to real-time record themselves going through ASL (American Sign Language) motions. We used machine learning and computer vision techniques, specifically a Tensorflow model. As the sign language is done by the user in front of the device camera, the application will convert it to English text in real time, followed by speech, allowing for seamless translation. We also have implemented a live conversation feature as well, through which someone without hearing disabilities (and likely not fluent in ASL) can respond back, either with audio or text. This allows for a simulated conversation with limited delay, facilitating both casual and emergency situations. This application ultimately enables the hearing-impaired to communicate with a larger variety of people, reducing the barriers that exist for them in the world.
 
@@ -66,11 +66,11 @@ Additionally, our team brainstormed different ideas and mapped out the scope of 
 
 ### Project Development
 #### Repositories
-This GitHub repository only includes changes made for the Texas TSA State competition and does not have changes from before. As a team, we decided to have different repositories for each level of the competition as well as for major milestones. This allows for easier reflection while also serving as a good documentation method.
+This GitHub repository only includes changes made after the state level competition and does not have changes from before. As a team, we decided to have different repositories for each level of the competition as well as for major milestones. This allows for easier reflection while also serving as a good documentation method.
 
 If you would like to see our repositories for the different levels, you may do so here:
 * The repository submitted for our regionals competition as an intermediate step can be found here: https://github.com/ameya-kella/tsa_software_dev_regionals2526
-* Additionally, the work we made before regionals can be found here: https://github.com/ameya-kella/tsa_software_dev_2526
+* Additionally, the work we did before regionals can be found here: https://github.com/ameya-kella/tsa_software_dev_2526
 
 #### Google Colab Workspace
 This project's development has the need for intensive operations using libraries such as Tensorflow and PyTorch. However, some of our teammates worked on shared computers which has hardware restrictions such as low RAM and a lack of GPU structures. Additionally, they were unable to commit changes to the GitHub as they could not make push requests from their devices.
@@ -85,7 +85,7 @@ Along with this, we systematically tested our ASL → Text model using our camer
 ## Usage / Installation:
 To test out our app on your own, install all necessary libraries stated in the "requirements.txt" file.
 
-```pip install -r requirements.txt```
+```pip install -r backend/requirements.txt```
 
 You may also need to download certain nltk corpora used in our program.
 
