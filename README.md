@@ -91,4 +91,8 @@ You may also need to download certain nltk corpora used in our program.
 
 ```python -m nltk.downloader punkt averaged_perceptron_tagger_eng wordnet omw-1.4 stopwords```
 
+## Sources:
+The below file includes the sources used for designing and implementing this project.
+https://drive.google.com/file/d/1oOz_oWSFPUDGddVBYkmiyzb-csSEnzgp/view?usp=sharing
+
 
